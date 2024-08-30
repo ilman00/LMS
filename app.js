@@ -1,10 +1,40 @@
 const bodyParser = require("body-parser");
 const express = require("express");
 const mongoose = require("mongoose");
+const multer = require("multer");
+const path = require("path");
+const cors = require("cors")
 
 const app = express();
-
+app.use(cors())
 app.use(bodyParser.json());
+
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const fileType = file.mimetype.split('/')[0]; // Get the file type (image or video)
+        let uploadPath;
+
+        if (fileType === 'image') {
+            uploadPath = 'uploads/images/';
+        } else if (fileType === 'video') {
+            uploadPath = 'uploads/videos/';
+        } else {
+            return cb(new Error('File type not supported'), false);
+        }
+
+        cb(null, uploadPath); // Directory where the images will be stored
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + path.extname(file.originalname)); // Rename the file with the current timestamp and original extension
+    },
+});
+
+const upload = multer({ storage: storage });
+
+
+
+
 mongoose.connect("mongodb://127.0.0.1:27017/LMS")
 
 const optionSchema = new mongoose.Schema({
@@ -85,35 +115,35 @@ const newSubject = new Subject({
 // })
 
 // sending all Subjects name
-app.get("/subject-data", (req, res)=>{
-    Subject.find({}, {title: 1}).then(result=>{
+app.get("/subject-data", (req, res) => {
+    Subject.find({}, { title: 1 }).then(result => {
         if (!result) {
             return res.status(404).json({ Error: "Error retrieving data from database" });
         }
-        res.json({data: result});
-    }).catch(err=>{
-        res.status(400).json({error: `Error Retreving data from database: ${err}`})
+        res.json({ data: result });
+    }).catch(err => {
+        res.status(400).json({ error: `Error Retreving data from database: ${err}` })
     })
 });
 
 
 
 // Sending chapters Name and content of specified subject
-app.get("/subject-data/for-chapters/:subjectname", (req, res)=>{
+app.get("/subject-data/for-chapters/:subjectname", (req, res) => {
 
     const subjectName = req.params.subjectname;
 
-    Subject.findOne({title: subjectName}, {"chapters.name": 1}).then(result=>{
+    Subject.findOne({ title: subjectName }, { "chapters.name": 1 }).then(result => {
         if (!result) {
             return res.status(404).json({ Error: "Subject not found" });
         }
-        res.json({data: result});
-    }).catch(err=>{
-        res.status(400).json({error: `Error Retreving data from database: ${err}`})
+        res.json({ data: result });
+    }).catch(err => {
+        res.status(400).json({ error: `Error Retreving data from database: ${err}` })
     })
 });
 
-// sending contents
+// Get chapter name and contents
 app.get("/subject-data/for-contents/:subjectCode/:chapterCode", (req, res) => {
     const subjectCode = req.params.subjectCode;
     const chapterCode = req.params.chapterCode;
@@ -125,28 +155,29 @@ app.get("/subject-data/for-contents/:subjectCode/:chapterCode", (req, res) => {
         if (!result) {
             return res.status(404).json({ Error: "Subject Code or Chapter Code not found" });
         }
-        res.json({ data: result.chapters[0].contents }); // Send the contents of the chapter
+        res.json({ data: { title: result.chapters[0].name, content: result.chapters[0].contents } }); // Send the contents of the chapter
     }).catch(err => {
         res.status(400).json({ error: `Error Retrieving data from database: ${err}` });
     });
 });
 
-
-app.get("/subject-data/for-exercise/:subjectName/", (req, res )=>{
+// Get Chatper name and exercise
+app.get("/subject-data/for-exercise/:subjectName/", (req, res) => {
     const subjectName = req.params.subjectName;
     // const chapterCode  = req.params.chapterCode;
 
-    Subject.findOne({title: subjectName}, {'chapters.name': 1 ,'chapters.exercises': 1}).then(result=>{
+    Subject.findOne({ title: subjectName }, { 'chapters.name': 1, 'chapters.exercises': 1 }).then(result => {
         if (!result) {
             return res.status(404).json({ Error: "Subject not found" });
         }
-        res.json({data: result});
-    }).catch(err=>{
-        res.status(400).json({Error: err});
+        res.json({ data: result });
+    }).catch(err => {
+        res.status(400).json({ Error: err });
     });
 
 });
 
+// Get Chapter Exercise
 app.get("/subject-data/for-exercise/:subjectCode/:chapterCode", (req, res) => {
     const subjectCode = req.params.subjectCode;
     const chapterCode = req.params.chapterCode;
@@ -165,7 +196,7 @@ app.get("/subject-data/for-exercise/:subjectCode/:chapterCode", (req, res) => {
 });
 
 
-
+// saving chapter in database
 app.post("/subject-data/:subjectName", (req, res) => {
     const subjectName = req.params.subjectName;
 
@@ -173,6 +204,8 @@ app.post("/subject-data/:subjectName", (req, res) => {
         name: req.body.chapterName,
         chapterCode: req.body.chapterCode
     };
+
+    console.log(newChapter);
 
     Subject.findOne({ title: subjectName })
         .then(result => {
@@ -192,7 +225,14 @@ app.post("/subject-data/:subjectName", (req, res) => {
         });
 });
 
-app.post("/subject-data/:subjectName/:chapterCode", (req, res)=>{
+
+const uploadFields = upload.fields([
+    { name: 'image', maxCount: 1 }, // Accept 1 image file
+    { name: 'video', maxCount: 1 }  // Accept 1 video file
+]);
+
+// Saving Chapter contents in database
+app.post("/subject-data/:subjectName/:chapterCode", uploadFields, (req, res) => {
     const subjectName = req.params.subjectName;
     const chapterCode = req.params.chapterCode;
 
@@ -201,22 +241,64 @@ app.post("/subject-data/:subjectName/:chapterCode", (req, res)=>{
         img: req.body.img,
         video: req.body.video
     }
-
-    Subject.updateOne({title: subjectName, 'chapters.chapterCode': chapterCode}, {$push:{'chapters.$.contents': contents}}).then(result=>{
+    console.log(contents);
+    Subject.updateOne({ title: subjectName, 'chapters.chapterCode': chapterCode }, { $push: { 'chapters.$.contents': contents } }).then(result => {
         if (result.nModified === 0) {
             return res.status(404).json({ Error: "Subject or Chapter not found or no change made" });
         }
     }).then(() => {
         res.json({ Success: "Contents Saved Successfully" });
     })
-    .catch(err => {
-        res.status(400).json({ Error: "Something went wrong with saving the Contents: " + err });
-    });
-})
+        .catch(err => {
+            res.status(400).json({ Error: "Something went wrong with saving the Contents: " + err });
+        });
+});
 
+app.post("/api/exercise-entry/:subjectCode/:chapterCode", (req, res) => {
+    const chapterCode = req.params.chapterCode;
+    const subjectCode = req.params.subjectCode;
+    const newExercise = {
+        question: req.body.question,
+        options:{
+            op1: req.body.op1,
+            op2: req.body.op2,
+            op3: req.body.op3,
+            op4: req.body.op4
+        }
+    }
+
+    Subject.findOne({ code: subjectCode, "chapters.chapterCode": chapterCode }, {"chapters.$.exercises": 1}).then(result=>{
+        console.log(result);
+        res.json(result)
+    }).catch(err=>{
+        console.log("Error: ", err);
+    })
+
+    
+});
+
+// deleting chapter in database
+app.delete("/subject-data/:subjectName/chapter/:chapterCode", (req, res) => {
+    const subjectName = req.params.subjectName;
+    const chapterCode = req.params.chapterCode;
+
+    Subject.updateOne(
+        { title: subjectName },  // Find the subject by title
+        { $pull: { chapters: { chapterCode: chapterCode } } }  // Remove the chapter with the specified _id
+    )
+        .then(result => {
+            if (result.modifiedCount === 0) {
+                return res.status(404).json({ Error: "Chapter not found or already deleted" });
+            }
+            res.json({ Success: "Chapter deleted successfully" });
+        })
+        .catch(err => {
+            res.status(400).json({ Error: "Something went wrong with deleting the chapter: " + err });
+        });
+});
 
 
 
 app.listen(3000, () => {
     console.log("Server Running on Port 3000");
-})
+});

@@ -29,7 +29,7 @@
             background: #343a40;
             color: #fff;
             transition: all 0.3s;
-            
+
         }
 
         #sidebar .nav-link {
@@ -55,7 +55,7 @@
             border-bottom: 1px solid #343a40;
         }
 
-        #sidebar .subject-heading div:last-child{
+        #sidebar .subject-heading div:last-child {
             float: right;
         }
 
@@ -68,8 +68,8 @@
             margin-left: 20px;
         }
 
-        @media screen and (max-width: 992px){
-            #sidebar{
+        @media screen and (max-width: 992px) {
+            #sidebar {
                 display: none;
                 position: fixed;
                 top: 0;
@@ -79,8 +79,6 @@
                 height: 100vh;
             }
         }
-        
-
     </style>
 </head>
 
@@ -92,7 +90,7 @@
             <div class="position-sticky">
                 <div>
 
-                    <h4 class="subject-heading"><span>Subjects</span>  <span>cl</span></h4>
+                    <h4 class="subject-heading"><span>Subjects</span> <span>cl</span></h4>
                 </div>
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -130,27 +128,51 @@
             </nav>
             <div class="container-fluid" style="min-height: 80vh;">
                 <h1 class="my-4">Welcome to the LMS</h1>
-                <p>Select a subject from the sidebar to view course materials and assignments.</p>
+                <div id="output"></div>
             </div>
         </div>
     </div>
-
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        $(document).ready(function(){
+        $(document).ready(function () {
             const sidebar = document.getElementById("sidebar");
-            $("#btnCollapse").click(function(){
+            $("#btnCollapse").click(function () {
 
-                if(sidebar.style.display === "none"){
-                    $("#sidebar").css({"display": "inline-block"});
-                }else{
-                    $("#sidebar").css({"display": "none"});
+                if (sidebar.style.display === "none") {
+                    $("#sidebar").css({ "display": "inline-block" });
+                } else {
+                    $("#sidebar").css({ "display": "none" });
 
                 }
-                    
+
             });
 
         })
+
+        // URL of the API
+        const apiUrl = 'http://localhost:3000/subject-data/for-contents/HST101/HIS101CH2';
+
+        $.ajax({
+            url: apiUrl,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+               
+                console.log(data);
+                const content = data.data.content;
+
+                content.forEach((element, index) => {
+                    console.log(element.img);
+                    $('#output').append(`<p>${element.text}</p><p>${element.img}</p><p>${element.video}</p>`);
+                });
+            },
+            error: function (xhr, status, error) {
+                console.error('AJAX request failed:', status, error);
+            }
+        });
+
     </script>
+
 
     <!-- Bootstrap JS and dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
